@@ -31,13 +31,15 @@ defmodule Courier.API do
     end
   end
 
-  def report_location(token, courierId) do
+  def report_location(token, courierId, latLng) do
     Logger.debug("[C] reporting location #{courierId}")
+
+    {lat, lng} = latLng
 
     input = %{
       "latLng" => %{
-        "latitude" => :rand.uniform(),
-        "longitude" => :rand.uniform()
+        "latitude" => lat,
+        "longitude" => lng
       }
     }
 

@@ -1,26 +1,7 @@
-defmodule User do
-  def start() do
-    {:ok, token} = Sim.get_token()
-
-    restaurants = get_restaurants(token)
-    restaurant = Enum.random(restaurants)
-
-    dishes = get_dishes(token, restaurant["id"])
-
-    items_to_add = Kernel.ceil(:rand.uniform() * 5) + 2
-
-    Enum.to_list(1..items_to_add)
-    |> Enum.each(fn _ ->
-      dish = Enum.random(dishes)
-      add_dish_to_basket(token, restaurant["id"], dish["id"])
-    end)
-
-    get_basket(token)
-
-    checkout(token)
-
-    :ok
-  end
+defmodule User.API do
+  use HTTPoison.Base
+  import Sim
+  require Logger
 
   def get_restaurants(token) do
     case HTTPoison.get("http://localhost:8080/api/restaurants", Sim.headers(token)) do
@@ -73,5 +54,25 @@ defmodule User do
         {:ok, response} = Poison.decode(body)
         response
     end
+  end
+
+  def set_address(token) do
+    {lat, lon} = Sim.random_location()
+
+    input = %{
+      "location" => %{
+        "latitude" => lat,
+        "longitude" => lon
+      },
+      "address" => "fake",
+      "city" => "fake",
+      "country" => "fake"
+    }
+
+    HTTPoison.post!(
+      "http://localhost:8080/api/profile/address",
+      Sim.json(input),
+      Sim.headers(token)
+    )
   end
 end

@@ -6,12 +6,14 @@ defmodule Restaurant.API do
   def create_restaurant(token) do
     Logger.debug("[R] Creating Restaurant")
 
+    {lat, lon} = Sim.random_location()
+
     input = %{
       "name" => Faker.Company.name(),
       "address" => %{
         "location" => %{
-          "latitude" => :rand.uniform(),
-          "longitude" => :rand.uniform()
+          "latitude" => lat,
+          "longitude" => lon
         },
         "address" => Faker.Address.street_address(),
         "city" => Faker.Address.city(),
@@ -36,7 +38,7 @@ defmodule Restaurant.API do
 
     input = %{
       "name" => Faker.Food.dish(),
-      "price" => Float.round(:rand.uniform() * 20, 2)
+      "price" => Float.round(:rand.uniform() * 15, 2)
     }
 
     HTTPoison.post(
@@ -65,5 +67,4 @@ defmodule Restaurant.API do
       Sim.headers(token)
     )
   end
-
 end

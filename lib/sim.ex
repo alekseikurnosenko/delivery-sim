@@ -57,4 +57,21 @@ defmodule Sim do
     [Authorization: "Bearer #{token}", "content-type": "application/json"]
     # ["content-type": "application/json"]
   end
+
+  def random_location() do
+    min_lat = 29.624207
+    max_lat = 29.939842
+    min_lon = -95.571568
+    max_lon = -95.190748
+
+    lat = :rand.uniform() * (max_lat - min_lat) + min_lat
+    lon = :rand.uniform() * (max_lon - min_lon) + min_lon
+
+    %{
+      "latitude" => lat,
+      "longitude" => lon
+    }
+
+    {lat, lon}
+  end
 end

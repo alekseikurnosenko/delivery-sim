@@ -1,8 +1,9 @@
 defmodule SimSupervisor do
   use DynamicSupervisor
 
-  def start_link(init_arg) do
-    DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+  def start_link do
+    DynamicSupervisor.start_link(__MODULE__, [], name: __MODULE__)
+    test()
   end
 
   @impl true
@@ -19,9 +20,19 @@ defmodule SimSupervisor do
   end
 
   def order() do
-    orders = 5
+    orders = 1
+
     Enum.each(1..orders, fn _ ->
       User.start()
     end)
+  end
+
+  def test do
+    add_restaurant()
+    # add_restaurant()
+    add_courier()
+    # add_courier()
+    # add_courier()
+    order()
   end
 end

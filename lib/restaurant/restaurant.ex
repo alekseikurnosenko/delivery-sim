@@ -24,6 +24,7 @@ defmodule Restaurant do
       :token => token,
       :restaurantId => restaurantId
     }
+
     {:ok, state}
   end
 
