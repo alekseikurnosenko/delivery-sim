@@ -1,26 +1,129 @@
 defmodule User do
-  def start() do
-    {:ok, token} = Sim.get_token()
+  use GenServer
+  require Logger
 
-    User.API.set_address(token)
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args)
+  end
 
+  def init([index]) do
+    email = "user_#{index}@delivery.com"
+    password = "supersecretpassword"
+
+    Logger.debug("User:init #{email}")
+
+    send(self(), {:login, email, password})
+    {:ok, %{}}
+  end
+
+  def handle_info({:login, email, password}, state) do
+    token =
+      case Sim.login(email, password) do
+        {:ok, token} ->
+          token
+
+        _ ->
+          {:ok} = Sim.create_user(email, password)
+          {:ok, token} = Sim.login(email, password)
+          token
+      end
+
+      User.API.set_address(token)
+      {:ok, _} = WebsocketClient.init(self())
+
+      send(self(), {:browse})
+
+      {:noreply, %{token: token}}
+  end
+
+  def handle_info({:browse}, %{token: token} = state) do
     restaurants = User.API.get_restaurants(token)
-    restaurant = Enum.random(restaurants)
 
-    dishes = User.API.get_dishes(token, restaurant["id"])
+    # Browse selection of multiple restaurants
+    browse_restaurants_times = 5
+    Enum.each(1..browse_restaurants_times, fn _ ->
+      restaurant = Enum.random(restaurants)
+      User.API.get_dishes(token, restaurant["id"])
+      Process.sleep(dish_browse_delay())
+    end)
 
-    items_to_add = Kernel.ceil(:rand.uniform() * 5) + 2
+    # Start ordering
+    send(self(), {:basket, Enum.random(restaurants)["id"]})
+    {:noreply, state}
+  end
 
-    Enum.to_list(1..items_to_add)
-    |> Enum.each(fn _ ->
-      dish = Enum.random(dishes)
-      User.API.add_dish_to_basket(token, restaurant["id"], dish["id"])
+  def handle_info({:basket, restaurantId}, %{token: token} = state) do
+    items_to_add = fn -> Kernel.ceil(:rand.uniform() * 5) + 2 end
+    dishes = User.API.get_dishes(token, restaurantId)
+
+    basket = User.API.get_basket(token)
+
+    Enum.each(1..items_to_add.(), fn _ ->
+      dishId = Enum.random(dishes)["id"]
+      User.API.add_dish_to_basket(token, restaurantId, dishId, items_to_add.())
+      User.API.remove_dish_from_basket(token, restaurantId, dishId, items_to_add.() - 1)
+      Process.sleep(item_add_delay())
     end)
 
     User.API.get_basket(token)
 
-    User.API.checkout(token)
-
-    :ok
+    send(self(), {:order})
+    {:noreply, state}
   end
+
+  def handle_info({:order}, %{token: token} = state) do
+    orderId = User.API.checkout(token)["id"]
+    {:noreply, Map.put(state, :orderId, orderId)}
+  end
+
+  def handle_info({:websocket, event}, state) do
+    type = event["type"]
+    {:ok, decoded} = Poison.decode(event["payload"])
+    state = handle_event(type, decoded, state)
+    {:noreply, state}
+  end
+
+  defp handle_event(
+    "com.delivery.demo.courier.CourierLocationUpdated",
+    _payload,
+    state
+  ) do
+    # Observer courier location
+    # FIXME: Right now we would see all couriers!
+    state
+  end
+
+  defp handle_event(
+    "com.delivery.demo.order.OrderDelivered",
+    payload,
+    %{orderId: orderId} = state
+  ) do
+    if payload["orderId"] == orderId do
+      Process.send_after(self(), {:browse}, new_order_delay())
+      Map.delete(state, :orderId)
+    else
+      state
+    end
+  end
+
+  defp handle_event(
+    _type,
+    _payload,
+    state
+  ) do
+    state
+  end
+
+  defp dish_browse_delay do
+    1000
+  end
+
+  defp item_add_delay do
+    1000
+  end
+
+  defp new_order_delay do
+    2000
+  end
+
 end

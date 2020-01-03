@@ -1,6 +1,5 @@
 defmodule User.API do
   use HTTPoison.Base
-  import Sim
   require Logger
 
   def get_restaurants(token) do
@@ -22,11 +21,11 @@ defmodule User.API do
     end
   end
 
-  def add_dish_to_basket(token, restaurantId, dishId) do
+  def add_dish_to_basket(token, restaurantId, dishId, quantity) do
     input = %{
       "dishId" => dishId,
       "restaurantId" => restaurantId,
-      "quantity" => 1
+      "quantity" => quantity
     }
 
     case HTTPoison.post(
@@ -40,11 +39,29 @@ defmodule User.API do
     end
   end
 
+  def remove_dish_from_basket(token, restaurantId, dishId, quantity) do
+    input = %{
+      "dishId" => dishId,
+      "restaurantId" => restaurantId,
+      "quantity" => quantity
+    }
+
+    HTTPoison.post(
+      "http://localhost:8080/api/basket/addItem",
+      Sim.json(input),
+      Sim.headers(token)
+    )
+  end
+
   def get_basket(token) do
     case HTTPoison.get("http://localhost:8080/api/basket", Sim.headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
-        {:ok, response} = Poison.decode(body)
-        response
+        if body && body != "" do
+          {:ok, response} = Poison.decode(body)
+          response
+        else
+          %{}
+        end
     end
   end
 

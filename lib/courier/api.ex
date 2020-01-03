@@ -31,6 +31,18 @@ defmodule Courier.API do
     end
   end
 
+  def me(token) do
+    case HTTPoison.get("http://localhost:8080/api/couriers/me", headers(token)) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        if body && body != "" do
+          {:ok, response} = Poison.decode(body)
+          {:ok, response}
+        else
+          {:error}
+        end
+    end
+  end
+
   def report_location(token, courierId, latLng) do
     Logger.debug("[C] reporting location #{courierId}")
 

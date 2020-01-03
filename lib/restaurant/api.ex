@@ -29,7 +29,19 @@ defmodule Restaurant.API do
          ) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         {:ok, response} = Poison.decode(body)
-        {:ok, response["id"]}
+        response
+    end
+  end
+
+  def me(token) do
+    case HTTPoison.get("http://localhost:8080/api/restaurants/me", headers(token)) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        if body && body != "" do
+          {:ok, response} = Poison.decode(body)
+          {:ok, response}
+        else
+          {:empty}
+        end
     end
   end
 

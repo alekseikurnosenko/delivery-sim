@@ -3,30 +3,55 @@ defmodule Courier do
   require Logger
   import Sim
 
-  def start_link(_init_arg) do
-    GenServer.start_link(__MODULE__, [])
+  def start_link(index) do
+    GenServer.start_link(__MODULE__, index)
   end
 
-  def init(_args) do
-    {:ok, token} = get_token()
+  def init([index]) do
+    email = "courier_#{index}@delivery.com"
+    password = "supersecretpassword"
 
-    courier = Courier.API.create(token)
-    Courier.API.start_shift(token, courier["id"])
+    Logger.debug("Courier:init #{email}")
+
+    send(self(), {:login, email, password})
+    {:ok, %{}}
+  end
+
+  def handle_info({:login, email, password}, state) do
+    token =
+      case Sim.login(email, password) do
+        {:ok, token} ->
+          token
+
+        _ ->
+          {:ok} = Sim.create_user(email, password)
+          {:ok, token} = Sim.login(email, password)
+          token
+      end
+
+    courierId =
+      case Courier.API.me(token) do
+        {:ok, response} ->
+          response["id"]
+
+        _ ->
+          Courier.API.create(token)["id"]
+      end
+
+    Courier.API.start_shift(token, courierId)
     current_location = Sim.random_location()
-    Courier.API.report_location(token, courier["id"], current_location)
+    Courier.API.report_location(token, courierId, current_location)
+
+    state = Map.put(state, :token, token)
+    state = Map.put(state, :courierId, courierId)
+    state = Map.put(state, :orders, [])
+    state = Map.put(state, :location, current_location)
 
     {:ok, _} = WebsocketClient.init(self())
 
     Process.send_after(self(), :update, 1_000)
 
-    state = %{
-      :token => token,
-      :courierId => courier["id"],
-      :orders => [],
-      :location => current_location
-    }
-
-    {:ok, state}
+    {:noreply, state}
   end
 
   def handle_info(
@@ -57,9 +82,9 @@ defmodule Courier do
   end
 
   defp handle_pickup(
-    order,
-    %{token: token, courierId: courierId, location: location, orders: orders} = state
-  ) do
+         order,
+         %{token: token, courierId: courierId, location: location, orders: orders} = state
+       ) do
     # Ensure we are at pickup point
     if order[:at_pickup] == false do
       {new_location, at_pickup} =
@@ -93,9 +118,9 @@ defmodule Courier do
   end
 
   defp handle_dropoff(
-    order,
-    %{token: token, courierId: courierId, location: location, orders: orders} = state
-  ) do
+         order,
+         %{token: token, courierId: courierId, location: location, orders: orders} = state
+       ) do
     # Ensure we are at pickup point
     if order[:at_dropoff] == false do
       {new_location, at_dropoff} =
@@ -131,7 +156,7 @@ defmodule Courier do
   defp move_to(location, destination) do
     {current_lat, current_lon} = location
     {dst_lat, dst_lon} = destination
-    speed = 0.01
+    speed = movement_speed()
 
     if abs(current_lat - dst_lat) < speed && abs(current_lon - dst_lon) < speed do
       {:arrived, {dst_lat, dst_lon}}
@@ -213,5 +238,9 @@ defmodule Courier do
 
   defp handle_event(_type, _event, state) do
     state
+  end
+
+  defp movement_speed do
+    0.01
   end
 end
