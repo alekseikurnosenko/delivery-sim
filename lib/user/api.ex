@@ -1,9 +1,11 @@
 defmodule User.API do
   use HTTPoison.Base
   require Logger
+  import Sim
 
   def get_restaurants(token) do
-    case HTTPoison.get("http://localhost:8080/api/restaurants", Sim.headers(token)) do
+    Logger.debug("[U] Get restaurants")
+    case HTTPoison.get("#{endpoint()}/api/restaurants", Sim.headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         {:ok, response} = Poison.decode(body)
         response
@@ -11,8 +13,9 @@ defmodule User.API do
   end
 
   def get_dishes(token, restaurantId) do
+    Logger.debug("[U] Get dishes")
     case HTTPoison.get(
-           "http://localhost:8080/api/restaurants/#{restaurantId}/dishes",
+           "#{endpoint()}/api/restaurants/#{restaurantId}/dishes",
            Sim.headers(token)
          ) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
@@ -22,14 +25,16 @@ defmodule User.API do
   end
 
   def add_dish_to_basket(token, restaurantId, dishId, quantity) do
+    Logger.debug("[U] Add dish to basket")
     input = %{
       "dishId" => dishId,
       "restaurantId" => restaurantId,
-      "quantity" => quantity
+      "quantity" => quantity,
+      "forceNewBasket" => true
     }
 
     case HTTPoison.post(
-           "http://localhost:8080/api/basket/addItem",
+           "#{endpoint()}/api/basket/addItem",
            Sim.json(input),
            Sim.headers(token)
          ) do
@@ -40,6 +45,7 @@ defmodule User.API do
   end
 
   def remove_dish_from_basket(token, restaurantId, dishId, quantity) do
+    Logger.debug("[U] Remove dish from basket")
     input = %{
       "dishId" => dishId,
       "restaurantId" => restaurantId,
@@ -47,14 +53,15 @@ defmodule User.API do
     }
 
     HTTPoison.post(
-      "http://localhost:8080/api/basket/addItem",
+      "#{endpoint()}/api/basket/removeItem",
       Sim.json(input),
       Sim.headers(token)
     )
   end
 
   def get_basket(token) do
-    case HTTPoison.get("http://localhost:8080/api/basket", Sim.headers(token)) do
+    Logger.debug("[U] Get basket")
+    case HTTPoison.get("#{endpoint()}/api/basket", Sim.headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         if body && body != "" do
           {:ok, response} = Poison.decode(body)
@@ -66,7 +73,8 @@ defmodule User.API do
   end
 
   def checkout(token) do
-    case HTTPoison.post("http://localhost:8080/api/basket/checkout", [], Sim.headers(token)) do
+    Logger.debug("[U] Checkout")
+    case HTTPoison.post("#{endpoint()}/api/basket/checkout", [], Sim.headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         {:ok, response} = Poison.decode(body)
         response
@@ -87,7 +95,19 @@ defmodule User.API do
     }
 
     HTTPoison.post!(
-      "http://localhost:8080/api/profile/address",
+      "#{endpoint()}/api/profile/address",
+      Sim.json(input),
+      Sim.headers(token)
+    )
+  end
+
+  def set_payment_method(token, payment_method_id) do
+
+    input = %{
+      "paymentMethodId" => payment_method_id
+    }
+    HTTPoison.post!(
+      "#{endpoint()}/api/profile/payment_method",
       Sim.json(input),
       Sim.headers(token)
     )

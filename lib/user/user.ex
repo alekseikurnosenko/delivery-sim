@@ -1,19 +1,23 @@
 defmodule User do
-  use GenServer
+  use GenServer, restart: :permanent
   require Logger
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
   end
 
-  def init([index]) do
-    email = "user_#{index}@delivery.com"
-    password = "supersecretpassword"
+  def get_credentials(index) do
+    {"user_#{index}@delivery.com", "supersecretpassword"}
+  end
 
-    Logger.debug("User:init #{email}")
+  def init(opts) do
+    Logger.info("#{opts[:payment_method_id].()}")
+    {email,password} = get_credentials(opts[:index])
+
+    Logger.info("User:init #{email} #{inspect(self())}")
 
     send(self(), {:login, email, password})
-    {:ok, %{}}
+    {:ok, opts}
   end
 
   def handle_info({:login, email, password}, state) do
@@ -28,12 +32,27 @@ defmodule User do
           token
       end
 
-      User.API.set_address(token)
-      {:ok, _} = WebsocketClient.init(self())
+      {:ok, _} = WebsocketClient.init(self(), token)
 
-      send(self(), {:browse})
+      # NOTE: if the process crashes while running, we might have non-empty basket
 
-      {:noreply, %{token: token}}
+      send(self(), {:setup})
+      Logger.info("After send")
+
+      {:noreply, Map.put(state, :token, token)}
+  end
+
+  def handle_info({:setup}, state) do
+    Logger.info("handle info setup")
+    token = state[:token]
+    User.API.set_address(token)
+
+    payment_method_id = state[:payment_method_id].()
+    User.API.set_payment_method(token, payment_method_id)
+
+    send(self(), {:browse})
+
+    {:noreply, state}
   end
 
   def handle_info({:browse}, %{token: token} = state) do
@@ -53,15 +72,18 @@ defmodule User do
   end
 
   def handle_info({:basket, restaurantId}, %{token: token} = state) do
-    items_to_add = fn -> Kernel.ceil(:rand.uniform() * 5) + 2 end
+    dishes_count = fn -> Kernel.ceil(:rand.uniform() * 2) + 1 end # 1-3 dishes
+    items_per_dish = fn -> Kernel.ceil(:rand.uniform() * 1) + 1 end # 1-2 per dish
     dishes = User.API.get_dishes(token, restaurantId)
 
+    # Check basket for being empty?
     basket = User.API.get_basket(token)
 
-    Enum.each(1..items_to_add.(), fn _ ->
+
+    Enum.each(1..dishes_count.(), fn _ ->
       dishId = Enum.random(dishes)["id"]
-      User.API.add_dish_to_basket(token, restaurantId, dishId, items_to_add.())
-      User.API.remove_dish_from_basket(token, restaurantId, dishId, items_to_add.() - 1)
+      User.API.add_dish_to_basket(token, restaurantId, dishId, items_per_dish.())
+      User.API.remove_dish_from_basket(token, restaurantId, dishId, items_per_dish.() - 1)
       Process.sleep(item_add_delay())
     end)
 
@@ -83,6 +105,11 @@ defmodule User do
     {:noreply, state}
   end
 
+  def handle_info({:ssl_closed, some}, state) do
+    IO.inspect(some)
+    {:noreply, state}
+  end
+
   defp handle_event(
     "com.delivery.demo.courier.CourierLocationUpdated",
     _payload,
@@ -99,7 +126,22 @@ defmodule User do
     %{orderId: orderId} = state
   ) do
     if payload["orderId"] == orderId do
-      Process.send_after(self(), {:browse}, new_order_delay())
+      Logger.debug("[U] Order #{orderId} received, starting again")
+      Process.send_after(self(), {:setup}, new_order_delay())
+      Map.delete(state, :orderId)
+    else
+      state
+    end
+  end
+
+  defp handle_event(
+    "com.delivery.demo.order.OrderCanceled",
+    payload,
+    %{orderId: orderId} = state
+  ) do
+    if payload["orderId"] == orderId do
+      Logger.debug("[U] Order #{orderId} canceled, starting again")
+      Process.send_after(self(), {:setup}, new_order_delay())
       Map.delete(state, :orderId)
     else
       state

@@ -1,5 +1,5 @@
 defmodule Courier do
-  use GenServer
+  use GenServer, restart: :permanent
   require Logger
   import Sim
 
@@ -7,11 +7,14 @@ defmodule Courier do
     GenServer.start_link(__MODULE__, index)
   end
 
-  def init([index]) do
-    email = "courier_#{index}@delivery.com"
-    password = "supersecretpassword"
+  def get_credentials(index) do
+    {"courier_#{index}@delivery.com", "supersecretpassword"}
+  end
 
-    Logger.debug("Courier:init #{email}")
+  def init(index) do
+    {email, password} = get_credentials(index)
+
+    Logger.info("Courier:init #{email} #{inspect(self())}")
 
     send(self(), {:login, email, password})
     {:ok, %{}}
@@ -29,55 +32,76 @@ defmodule Courier do
           token
       end
 
-    courierId =
+    # Here we need to recover whatever we were doing
+    courier =
       case Courier.API.me(token) do
         {:ok, response} ->
-          response["id"]
+          response
 
         _ ->
-          Courier.API.create(token)["id"]
+          Courier.API.create(token)
       end
 
-    Courier.API.start_shift(token, courierId)
-    current_location = Sim.random_location()
-    Courier.API.report_location(token, courierId, current_location)
+    if !courier["onShift"] do
+      Courier.API.start_shift(token, courier["id"])
+    end
+
+    current_location =
+      if !courier["location"] do
+        current_location = Sim.random_location()
+        Courier.API.report_location(token, courier["id"], current_location)
+        current_location
+      else
+        {courier["location"]["latitude"], courier["location"]["longitude"]}
+      end
+
+    orders = get_orders(token)
 
     state = Map.put(state, :token, token)
-    state = Map.put(state, :courierId, courierId)
-    state = Map.put(state, :orders, [])
+    state = Map.put(state, :courierId, courier["id"])
     state = Map.put(state, :location, current_location)
+    state = Map.put(state, :orders, orders)
 
-    {:ok, _} = WebsocketClient.init(self())
+    {:ok, _} = WebsocketClient.init(self(), token)
 
-    Process.send_after(self(), :update, 1_000)
+    Process.send_after(self(), :update, 500)
 
     {:noreply, state}
   end
 
   def handle_info(
         :update,
-        %{orders: orders} = state
+        %{orders: orders, token: token} = state
       ) do
-    Process.send_after(self(), :update, 1_000)
-
     order = List.first(orders)
 
-    if order != nil do
-      Logger.debug("Order: #{inspect(order)}")
-      # Handle pickup
-      cond do
-        order[:did_pickup] == false -> handle_pickup(order, state)
-        order[:did_dropoff] == false -> handle_dropoff(order, state)
-        true -> {:noreply, %{state | orders: Enum.drop(orders, 1)}}
+    new_state =
+      if order != nil do
+        # Handle pickup
+        cond do
+          order[:did_pickup] == false -> handle_pickup(order, state)
+          order[:did_dropoff] == false -> handle_dropoff(order, state)
+          true -> %{state | orders: Enum.drop(orders, 1)}
+        end
+      else
+        # Might that we've missed the update
+        # Force refresh
+        Process.sleep(10000)
+        %{state | orders: get_orders(token)}
       end
-    else
-      {:noreply, state}
-    end
+
+    Process.send_after(self(), :update, 500)
+    {:noreply, new_state}
   end
 
   def handle_info({:websocket, %{"type" => type, "payload" => payload}}, state) do
     {:ok, decoded_payload} = Poison.decode(payload)
     state = handle_event(type, decoded_payload, state)
+    {:noreply, state}
+  end
+
+  def handle_info({:ssl_closed, some}, state) do
+    IO.inspect(some)
     {:noreply, state}
   end
 
@@ -95,24 +119,24 @@ defmodule Courier do
 
       Courier.API.report_location(token, courierId, new_location)
 
-      {:noreply,
-       %{
-         state
-         | location: new_location,
-           orders: List.update_at(orders, 0, fn _ -> %{order | at_pickup: at_pickup} end)
-       }}
+      %{
+        state
+        | location: new_location,
+          orders: List.update_at(orders, 0, fn _ -> %{order | at_pickup: at_pickup} end)
+      }
     else
       if order[:can_pickup] == false do
-        # Wait
-        {:noreply, state}
+        # Might that we've missed the update
+        # Force refresh
+        Process.sleep(5000)
+        %{state | orders: get_orders(token)}
       else
         Courier.API.confirm_pickup(token, courierId, order[:orderId])
 
-        {:noreply,
-         %{
-           state
-           | orders: List.update_at(orders, 0, fn _ -> %{order | did_pickup: true} end)
-         }}
+        %{
+          state
+          | orders: List.update_at(orders, 0, fn _ -> %{order | did_pickup: true} end)
+        }
       end
     end
   end
@@ -131,24 +155,23 @@ defmodule Courier do
 
       Courier.API.report_location(token, courierId, new_location)
 
-      {:noreply,
+
        %{
          state
          | location: new_location,
            orders: List.update_at(orders, 0, fn _ -> %{order | at_dropoff: at_dropoff} end)
-       }}
+       }
     else
       if order[:can_dropoff] == false do
         # Wait
-        {:noreply, state}
+        state
       else
         Courier.API.confirm_dropoff(token, courierId, order[:orderId])
 
-        {:noreply,
-         %{
-           state
-           | orders: List.update_at(orders, 0, fn _ -> %{order | did_dropoff: true} end)
-         }}
+        %{
+          state
+          | orders: List.update_at(orders, 0, fn _ -> %{order | did_dropoff: true} end)
+        }
       end
     end
   end
@@ -186,37 +209,37 @@ defmodule Courier do
        ) do
     # If it's aimed at us, remember that we need to pick it up
     # Mb. start moving?
-    if payload["courierId"] == courierId do
-      Logger.debug("[C] #{courierId} Got assigned new order")
-
-      orderId = payload["orderId"]
-
-      pickup = {
-        payload["restaurantAddress"]["location"]["latitude"],
-        payload["restaurantAddress"]["location"]["longitude"]
-      }
-
-      dropoff = {
-        payload["deliveryAddress"]["location"]["latitude"],
-        payload["deliveryAddress"]["location"]["longitude"]
-      }
-
-      order = %{
-        orderId: orderId,
-        pickup: pickup,
-        at_pickup: false,
-        can_pickup: false,
-        did_pickup: false,
-        dropoff: dropoff,
-        at_dropoff: false,
-        can_dropoff: true,
-        did_dropoff: false
-      }
-
-      %{state | orders: [order | orders]}
-    else
-      state
+    if payload["courierId"] != courierId do
+      raise "Receieved event of another courier: my:#{courierId} vs #{payload["courierId"]}"
     end
+
+    Logger.debug("[C] #{courierId} Got assigned new order")
+
+    orderId = payload["orderId"]
+
+    pickup = {
+      payload["restaurantAddress"]["location"]["latitude"],
+      payload["restaurantAddress"]["location"]["longitude"]
+    }
+
+    dropoff = {
+      payload["deliveryAddress"]["location"]["latitude"],
+      payload["deliveryAddress"]["location"]["longitude"]
+    }
+
+    order = %{
+      orderId: orderId,
+      pickup: pickup,
+      at_pickup: false,
+      can_pickup: false,
+      did_pickup: false,
+      dropoff: dropoff,
+      at_dropoff: false,
+      can_dropoff: true,
+      did_dropoff: false
+    }
+
+    %{state | orders: Enum.concat(orders, [order])}
   end
 
   defp handle_event(
@@ -227,17 +250,43 @@ defmodule Courier do
     # If it's an order we are currently checking out
     index = Enum.find_index(orders, fn o -> o[:orderId] == payload["orderId"] end)
 
-    if index do
-      Logger.debug("[C] #{courierId} Assigned order got finished #{payload["orderId"]}")
-
-      %{state | orders: List.update_at(orders, index, fn o -> %{o | can_pickup: true} end)}
-    else
-      state
+    if index == nil do
+      raise "Received event for an untracked order: #{payload["orderId"]}"
     end
+
+    Logger.debug("[C] #{courierId} Assigned order got finished #{payload["orderId"]}")
+
+    %{state | orders: List.update_at(orders, index, fn o -> %{o | can_pickup: true} end)}
   end
 
-  defp handle_event(_type, _event, state) do
+  defp handle_event(type, _event, state) do
+    Logger.error("[C] Unknown event type: #{type}")
     state
+  end
+
+  defp get_orders(token) do
+    {:ok, courier} = Courier.API.me(token)
+
+    (courier["activeOrders"] || [])
+    |> Enum.map(fn order ->
+      %{
+        orderId: order["id"],
+        pickup: {
+          order["restaurant"]["address"]["location"]["latitude"],
+          order["restaurant"]["address"]["location"]["longitude"]
+        },
+        at_pickup: false,
+        can_pickup: Enum.member?(["AwaitingPickup", "InDelivery", "Delivered"], order["status"]),
+        did_pickup: Enum.member?(["InDelivery", "Delivered"], order["status"]),
+        dropoff: {
+          order["deliveryAddress"]["location"]["latitude"],
+          order["deliveryAddress"]["location"]["longitude"]
+        },
+        at_dropoff: false,
+        can_dropoff: true,
+        did_dropoff: order["status"] == "Delivered"
+      }
+    end)
   end
 
   defp movement_speed do
