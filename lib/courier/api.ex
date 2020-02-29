@@ -80,7 +80,7 @@ defmodule Courier.API do
   end
 
   def confirm_dropoff(token, courierId, orderId) do
-    Logger.debug("[C] confirming dropoff #{courierId} for order #{orderId}")
+    Logger.debug("[C] confirming dropoff as #{courierId} for order #{orderId}")
 
     case HTTPoison.post(
            "#{endpoint()}/api/couriers/#{courierId}/orders/#{orderId}/confirmDropoff",
@@ -92,4 +92,34 @@ defmodule Courier.API do
         response
     end
   end
+
+  def acceptDeliveryRequest(token, courierId, orderId) do
+    Logger.debug("[C] accepting delivery reqest as #{courierId} for order #{orderId}")
+
+    case HTTPoison.post(
+      "#{endpoint()}/api/couriers/#{courierId}/requests/#{orderId}/accept",
+      [],
+      headers(token)
+    ) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        {:ok, response} = Poison.decode(body)
+        {:ok, response}
+    end
+  end
+
+  def rejectDeliveryRequest(token, courierId, orderId) do
+    Logger.debug("[C] rejecting delivery reqest as #{courierId} for order #{orderId}")
+
+    case HTTPoison.post(
+      "#{endpoint()}/api/couriers/#{courierId}/requests/#{orderId}/reject",
+      [],
+      headers(token)
+    ) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        # {:ok, response} = Poison.decode(body)
+        # {:ok, response}
+        {:ok}
+    end
+  end
+
 end

@@ -155,12 +155,11 @@ defmodule Courier do
 
       Courier.API.report_location(token, courierId, new_location)
 
-
-       %{
-         state
-         | location: new_location,
-           orders: List.update_at(orders, 0, fn _ -> %{order | at_dropoff: at_dropoff} end)
-       }
+      %{
+        state
+        | location: new_location,
+          orders: List.update_at(orders, 0, fn _ -> %{order | at_dropoff: at_dropoff} end)
+      }
     else
       if order[:can_dropoff] == false do
         # Wait
@@ -173,32 +172,6 @@ defmodule Courier do
           | orders: List.update_at(orders, 0, fn _ -> %{order | did_dropoff: true} end)
         }
       end
-    end
-  end
-
-  defp move_to(location, destination) do
-    {current_lat, current_lon} = location
-    {dst_lat, dst_lon} = destination
-    speed = movement_speed()
-
-    if abs(current_lat - dst_lat) < speed && abs(current_lon - dst_lon) < speed do
-      {:arrived, {dst_lat, dst_lon}}
-    else
-      lat_diff = dst_lat - current_lat
-      lon_diff = dst_lon - current_lon
-
-      vector_distance = :math.sqrt(lat_diff * lat_diff + lon_diff * lon_diff)
-
-      unit_lat_diff = lat_diff / vector_distance
-      unit_lon_diff = lon_diff / vector_distance
-
-      move_lat = unit_lat_diff * speed
-      move_lon = unit_lon_diff * speed
-
-      new_lat = current_lat + move_lat
-      new_lon = current_lon + move_lon
-
-      {:pending, {new_lat, new_lon}}
     end
   end
 
@@ -259,6 +232,21 @@ defmodule Courier do
     %{state | orders: List.update_at(orders, index, fn o -> %{o | can_pickup: true} end)}
   end
 
+  defp handle_event(
+         "com.delivery.demo.delivery.DeliveryRequested",
+         payload,
+         %{courierId: courierId, token: token} = state
+       ) do
+    if payload["courierId"] != courierId do
+      raise "[C] Recieved event of another courier: my:#{courierId} vs #{payload["courierId"]}"
+    end
+
+    orderId = payload["orderId"]
+    # Accept or reject
+    Courier.API.acceptDeliveryRequest(token, courierId, orderId)
+    state
+  end
+
   defp handle_event(type, _event, state) do
     Logger.error("[C] Unknown event type: #{type}")
     state
@@ -287,6 +275,32 @@ defmodule Courier do
         did_dropoff: order["status"] == "Delivered"
       }
     end)
+  end
+
+  defp move_to(location, destination) do
+    {current_lat, current_lon} = location
+    {dst_lat, dst_lon} = destination
+    speed = movement_speed()
+
+    if abs(current_lat - dst_lat) < speed && abs(current_lon - dst_lon) < speed do
+      {:arrived, {dst_lat, dst_lon}}
+    else
+      lat_diff = dst_lat - current_lat
+      lon_diff = dst_lon - current_lon
+
+      vector_distance = :math.sqrt(lat_diff * lat_diff + lon_diff * lon_diff)
+
+      unit_lat_diff = lat_diff / vector_distance
+      unit_lon_diff = lon_diff / vector_distance
+
+      move_lat = unit_lat_diff * speed
+      move_lon = unit_lon_diff * speed
+
+      new_lat = current_lat + move_lat
+      new_lon = current_lon + move_lon
+
+      {:pending, {new_lat, new_lon}}
+    end
   end
 
   defp movement_speed do

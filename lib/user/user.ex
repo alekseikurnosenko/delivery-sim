@@ -58,38 +58,48 @@ defmodule User do
   def handle_info({:browse}, %{token: token} = state) do
     restaurants = User.API.get_restaurants(token)
 
-    # Browse selection of multiple restaurants
-    browse_restaurants_times = 5
+    # Browse restaurants dishes
+    browse_restaurants_times = state[:browse_restaurants_times]
     Enum.each(1..browse_restaurants_times, fn _ ->
       restaurant = Enum.random(restaurants)
+
       User.API.get_dishes(token, restaurant["id"])
-      Process.sleep(dish_browse_delay())
+
+      # Simulate user reading through the dishes
+      Process.sleep(state[:dishes_browse_delay])
     end)
 
-    # Start ordering
-    send(self(), {:basket, Enum.random(restaurants)["id"]})
+    # Order from random restaurnt
+    if (state[:would_add_to_basket]) do
+      send(self(), {:basket, Enum.random(restaurants)["id"]})
+    end
+
     {:noreply, state}
   end
 
   def handle_info({:basket, restaurantId}, %{token: token} = state) do
-    dishes_count = fn -> Kernel.ceil(:rand.uniform() * 2) + 1 end # 1-3 dishes
-    items_per_dish = fn -> Kernel.ceil(:rand.uniform() * 1) + 1 end # 1-2 per dish
-    dishes = User.API.get_dishes(token, restaurantId)
+    dishes_count = state[:dishes_count]
+    items_per_dish = state[:items_per_dish]
+    item_add_delay = state[:item_add_delay]
 
     # Check basket for being empty?
-    basket = User.API.get_basket(token)
+    User.API.get_basket(token)
 
-
+    dishes = User.API.get_dishes(token, restaurantId)
+    # Simulate adding and removing items from basket
     Enum.each(1..dishes_count.(), fn _ ->
       dishId = Enum.random(dishes)["id"]
       User.API.add_dish_to_basket(token, restaurantId, dishId, items_per_dish.())
       User.API.remove_dish_from_basket(token, restaurantId, dishId, items_per_dish.() - 1)
-      Process.sleep(item_add_delay())
+      Process.sleep(item_add_delay)
     end)
 
     User.API.get_basket(token)
 
-    send(self(), {:order})
+    if (state[:would_order]) do
+      send(self(), {:order})
+    end
+
     {:noreply, state}
   end
 
@@ -116,7 +126,6 @@ defmodule User do
     state
   ) do
     # Observer courier location
-    # FIXME: Right now we would see all couriers!
     state
   end
 
@@ -154,14 +163,6 @@ defmodule User do
     state
   ) do
     state
-  end
-
-  defp dish_browse_delay do
-    1000
-  end
-
-  defp item_add_delay do
-    1000
   end
 
   defp new_order_delay do
