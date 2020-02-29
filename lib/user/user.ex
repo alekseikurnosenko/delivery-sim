@@ -70,8 +70,10 @@ defmodule User do
     end)
 
     # Order from random restaurnt
-    if (state[:would_add_to_basket]) do
+    if (state[:would_add_to_basket].()) do
       send(self(), {:basket, Enum.random(restaurants)["id"]})
+    else
+      Process.send_after(self(), {:setup}, new_order_delay())
     end
 
     {:noreply, state}
@@ -96,8 +98,10 @@ defmodule User do
 
     User.API.get_basket(token)
 
-    if (state[:would_order]) do
+    if (state[:would_order].()) do
       send(self(), {:order})
+    else
+      Process.send_after(self(), {:setup}, new_order_delay())
     end
 
     {:noreply, state}

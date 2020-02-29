@@ -3,21 +3,21 @@ defmodule Courier do
   require Logger
   import Sim
 
-  def start_link(index) do
-    GenServer.start_link(__MODULE__, index)
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args)
   end
 
   def get_credentials(index) do
     {"courier_#{index}@delivery.com", "supersecretpassword"}
   end
 
-  def init(index) do
-    {email, password} = get_credentials(index)
+  def init(opts) do
+    {email,password} = get_credentials(opts[:index])
 
     Logger.info("Courier:init #{email} #{inspect(self())}")
 
     send(self(), {:login, email, password})
-    {:ok, %{}}
+    {:ok, opts}
   end
 
   def handle_info({:login, email, password}, state) do
@@ -112,7 +112,7 @@ defmodule Courier do
     # Ensure we are at pickup point
     if order[:at_pickup] == false do
       {new_location, at_pickup} =
-        case move_to(location, order[:pickup]) do
+        case move_to(location, order[:pickup], state[:movement_speed]) do
           {:arrived, new_location} -> {new_location, true}
           {:pending, new_location} -> {new_location, false}
         end
@@ -148,7 +148,7 @@ defmodule Courier do
     # Ensure we are at pickup point
     if order[:at_dropoff] == false do
       {new_location, at_dropoff} =
-        case move_to(location, order[:dropoff]) do
+        case move_to(location, order[:dropoff], state[:movement_speed]) do
           {:arrived, new_location} -> {new_location, true}
           {:pending, new_location} -> {new_location, false}
         end
@@ -204,7 +204,7 @@ defmodule Courier do
       orderId: orderId,
       pickup: pickup,
       at_pickup: false,
-      can_pickup: false,
+      can_pickup: payload["status"] == "AwaitingPickup",
       did_pickup: false,
       dropoff: dropoff,
       at_dropoff: false,
@@ -243,7 +243,12 @@ defmodule Courier do
 
     orderId = payload["orderId"]
     # Accept or reject
-    Courier.API.acceptDeliveryRequest(token, courierId, orderId)
+    if state[:would_accept].() do
+      Courier.API.acceptDeliveryRequest(token, courierId, orderId)
+    else
+      Courier.API.rejectDeliveryRequest(token, courierId, orderId)
+    end
+
     state
   end
 
@@ -277,10 +282,9 @@ defmodule Courier do
     end)
   end
 
-  defp move_to(location, destination) do
+  defp move_to(location, destination, speed) do
     {current_lat, current_lon} = location
     {dst_lat, dst_lon} = destination
-    speed = movement_speed()
 
     if abs(current_lat - dst_lat) < speed && abs(current_lon - dst_lon) < speed do
       {:arrived, {dst_lat, dst_lon}}
@@ -301,9 +305,5 @@ defmodule Courier do
 
       {:pending, {new_lat, new_lon}}
     end
-  end
-
-  defp movement_speed do
-    0.01
   end
 end

@@ -3,13 +3,14 @@ defmodule SimSupervisor do
   use DynamicSupervisor
 
   def start_link do
+    CourierSupervisor.start_link()
     DynamicSupervisor.start_link(__MODULE__, [], name: __MODULE__)
     Tokens.Repo.start_link()
   end
 
   def small_test do
     start_link()
-    test(1, 1, 1, 0)
+    test(1, 10, 10, 0)
   end
 
   def medium_test do
@@ -35,13 +36,7 @@ defmodule SimSupervisor do
     })
   end
 
-  def add_courier(index) do
-    DynamicSupervisor.start_child(__MODULE__, %{
-      id: Courier,
-      start: {Courier, :start_link, [index]},
-      restart: :permanent
-    })
-  end
+
 
   def add_user(index) do
     opts = %{
@@ -88,7 +83,7 @@ defmodule SimSupervisor do
     Logger.info("Started restaurants")
 
     Enum.each(1..couriers, fn n ->
-      add_courier(n)
+      CourierSupervisor.add_courier(n)
       Process.sleep(delay)
     end)
 
