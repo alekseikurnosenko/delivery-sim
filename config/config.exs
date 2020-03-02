@@ -8,6 +8,6 @@ config :delivery_sim, Tokens.Repo,
 
 config :delivery_sim, ecto_repos: [Tokens.Repo]
 
-config :logger, level: :debug
+config :logger, level: :info
 
 config :hackney, use_default_pool: false

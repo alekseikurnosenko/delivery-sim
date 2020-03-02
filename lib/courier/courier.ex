@@ -183,7 +183,7 @@ defmodule Courier do
     # If it's aimed at us, remember that we need to pick it up
     # Mb. start moving?
     if payload["courierId"] != courierId do
-      raise "Receieved event of another courier: my:#{courierId} vs #{payload["courierId"]}"
+      raise "[C] Receieved event of another courier: my:#{courierId} vs #{payload["courierId"]}"
     end
 
     Logger.debug("[C] #{courierId} Got assigned new order")
@@ -224,7 +224,7 @@ defmodule Courier do
     index = Enum.find_index(orders, fn o -> o[:orderId] == payload["orderId"] end)
 
     if index == nil do
-      raise "Received event for an untracked order: #{payload["orderId"]}"
+      raise "[C] #{courierId} Received OrderPreparationFinished event for an untracked order: #{payload["orderId"]}"
     end
 
     Logger.debug("[C] #{courierId} Assigned order got finished #{payload["orderId"]}")

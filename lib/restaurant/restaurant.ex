@@ -4,21 +4,21 @@ defmodule Restaurant do
 
   @dishes_per_restaurant 25
 
-  def start_link(index) do
-    GenServer.start_link(__MODULE__, index)
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts)
   end
 
   def get_credentials(index) do
     {"restaurant_#{index}@delivery.com", "supersecretpassword"}
   end
 
-  def init(index) do
-    {email, password} = get_credentials(index)
+  def init(opts) do
+    {email, password} = get_credentials(opts[:index])
 
     Logger.info("Restaurant:init #{email} #{inspect(self())}")
 
     send(self(), {:login, email, password})
-    {:ok, %{}}
+    {:ok, opts}
   end
 
   def handle_info({:login, email, password}, state) do
@@ -82,7 +82,7 @@ defmodule Restaurant do
 
   def handle_info({:start, orderId}, %{token: token, restaurantId: restaurantId} = state) do
     Restaurant.API.start_preparing(token, restaurantId, orderId)
-    Process.send_after(self(), {:finish, orderId}, prepare_time())
+    Process.send_after(self(), {:finish, orderId}, state[:prepare_time])
     {:noreply, state}
   end
 
@@ -113,9 +113,5 @@ defmodule Restaurant do
 
   defp start_delay do
     1000
-  end
-
-  defp prepare_time do
-    3000
   end
 end

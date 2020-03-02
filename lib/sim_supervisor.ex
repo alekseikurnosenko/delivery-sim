@@ -1,16 +1,16 @@
 defmodule SimSupervisor do
   require Logger
-  use DynamicSupervisor
 
   def start_link do
     CourierSupervisor.start_link()
-    DynamicSupervisor.start_link(__MODULE__, [], name: __MODULE__)
+    UserSupervisor.start_link()
+    RestaurantSupervisor.start_link()
     Tokens.Repo.start_link()
   end
 
   def small_test do
     start_link()
-    test(1, 10, 10, 0)
+    test(1, 1, 1, 0)
   end
 
   def medium_test do
@@ -23,62 +23,15 @@ defmodule SimSupervisor do
     test(200, 300, 400, 1000)
   end
 
-  @impl true
-  def init(_init_arg) do
-    DynamicSupervisor.init(strategy: :one_for_one, max_restarts: 999, max_seconds: 999)
-  end
-
-  def add_restaurant(index) do
-    DynamicSupervisor.start_child(__MODULE__, %{
-      id: Restaurant,
-      start: {Restaurant, :start_link, [index]},
-      restart: :permanent
-    })
-  end
-
-
-
-  def add_user(index) do
-    opts = %{
-      :index => index,
-      :payment_method_id => fn ->
-        case Kernel.round(:rand.uniform() * 100) do
-          x when x in 0..100 -> "PAYMENT_METHOD_SUCCESS"
-          _ -> "PAYMENT_METHOD_NOT_ENOUGH_FUNDS"
-        end
-      end,
-      :browse_restaurants_times => 1,
-      :dishes_browse_delay => 100,
-      :would_add_to_basket => fn ->
-        case Kernel.round(:rand.uniform() * 100) do
-          x when x in 0..100 -> true
-          _ -> false
-        end
-      end,
-      # TODO: Use gaussian function instead
-      :dishes_count => fn -> 1 + Kernel.ceil(:rand.uniform() * 2) end,
-      :items_per_dish => fn -> 1 + Kernel.ceil(:rand.uniform() * 1) end,
-      :item_add_delay => 100,
-      :would_order => fn ->
-        case Kernel.round(:rand.uniform() * 100) do
-          x when x in 0..100 -> true
-          _ -> false
-        end
-      end
-    }
-
-    DynamicSupervisor.start_child(__MODULE__, %{
-      id: User,
-      start: {User, :start_link, [opts]},
-      restart: :permanent
-    })
-  end
 
   def test(restaurants, couriers, users, delay) do
     Enum.each(1..restaurants, fn n ->
-      add_restaurant(n)
+      RestaurantSupervisor.add_restaurant(n)
       Process.sleep(delay)
     end)
+
+    # Sleep to let the create setup everything
+    Process.sleep(500)
 
     Logger.info("Started restaurants")
 
@@ -90,7 +43,7 @@ defmodule SimSupervisor do
     Logger.info("Started couriers")
 
     Enum.each(1..users, fn n ->
-      add_user(n)
+      UserSupervisor.add_user(n)
       Process.sleep(delay)
     end)
 

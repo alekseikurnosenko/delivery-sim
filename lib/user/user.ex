@@ -37,13 +37,11 @@ defmodule User do
       # NOTE: if the process crashes while running, we might have non-empty basket
 
       send(self(), {:setup})
-      Logger.info("After send")
 
       {:noreply, Map.put(state, :token, token)}
   end
 
   def handle_info({:setup}, state) do
-    Logger.info("handle info setup")
     token = state[:token]
     User.API.set_address(token)
 
