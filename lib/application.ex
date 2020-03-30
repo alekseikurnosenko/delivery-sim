@@ -16,8 +16,3 @@ defmodule DeliverySim.Application do
     Supervisor.start_link(children, opts)
   end
 end
-
-# Something that holds required_count / current_count / state(terminating)
-# Courier - genServer-api to stop (call backend)
-# Courier - backend-api to stop accepting requests
-# Courier - update - if no orders and are stopping - stop
