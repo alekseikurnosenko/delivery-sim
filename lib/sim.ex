@@ -108,7 +108,6 @@ defmodule Sim do
 
   def headers(token) do
     [Authorization: "Bearer #{token}", "content-type": "application/json"]
-    # ["content-type": "application/json"]
   end
 
   def random_location() do
