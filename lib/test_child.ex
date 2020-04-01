@@ -19,16 +19,17 @@ defmodule TestChild do
 
   def handle_info(:ping, state) do
     if !state[:is_stopped] do
-      # IO.puts("#{inspect(self())}.ping")
+      #IO.puts("#{inspect(self())}.ping")
       Process.send_after(self(), :ping, 5000)
       {:noreply, state}
     else
-      IO.puts("#{inspect(self())}.stop")
+      IO.puts("#{inspect(self())}.stoped")
       {:stop, :normal, state}
     end
   end
 
   def handle_cast(:stop, state) do
+    IO.puts("#{inspect(self())}.stopping")
     {:noreply, %{state | :is_stopped => true}}
   end
 

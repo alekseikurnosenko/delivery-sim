@@ -1,6 +1,8 @@
 defmodule Spawner do
   use GenServer
 
+  @registry :test_registry
+
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: Spawner)
   end
@@ -26,38 +28,42 @@ defmodule Spawner do
   def handle_info(:update, state) do
     spec = [{{:"$1", :"$2", :"$3"}, [], [{{:"$1"}}]}]
 
-    result =
-      Registry.select(:test_registry, spec)
-      |> Enum.map(fn process -> elem(process, 0) end)
-
+    result = TestSupervisor.child_indexes()
     IO.inspect(result)
+
     current_count = length(result)
-
     desired_count = state[:desired_count]
-
     IO.puts("Update #{desired_count} vs #{current_count}")
 
     if desired_count > current_count do
-      index = find_next_index(result)
-      IO.puts("Adding #{index}")
-      TestSupervisor.add_child(index)
-      Process.send(self(), :update, [])
+      0..(desired_count - current_count - 1)
+      |> Enum.each(fn _ ->
+        next_index = find_next_index()
+        IO.puts("Adding #{next_index}")
+        TestSupervisor.add_child(next_index)
+      end)
     end
 
     if desired_count < current_count do
-      index = Enum.at(result, 0)
-      IO.puts("Stopping #{index}")
-      TestChild.stop(index)
-      Process.send(self(), :update, [])
+      0..(current_count - desired_count - 1)
+      |> Enum.map(fn i -> Enum.at(result, i) end)
+      |> Enum.each(fn index ->
+        #{_, value} = Registry.lookup(@registry, index) |> List.first()
+
+        IO.puts("Stopping #{index}")
+        TestChild.stop(index)
+      end)
     end
 
     {:noreply, state}
   end
 
-  def find_next_index(list) do
-    Enum.to_list(1..10_000)
-    |> Enum.filter(fn index -> !Enum.member?(list, index) end)
-    |> Enum.take(1)
+  def find_next_index() do
+    used_indexes = TestSupervisor.child_indexes()
+
+    Stream.iterate(0, &(&1 + 1))
+    |> Stream.filter(fn index -> !Enum.member?(used_indexes, index) end)
+    |> Stream.take(1)
     |> Enum.at(0)
   end
 end

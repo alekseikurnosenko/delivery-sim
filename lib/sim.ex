@@ -24,8 +24,8 @@ defmodule Sim do
   end
 
   def login_with_auth0(email, password) do
-    client_id = "<redacted>"
-    client_secret = "<redacted>"
+    client_id = Application.get_env(:delivery_sim, Sim)[:auth0_client_id]
+    client_secret = Application.get_env(:delivery_sim, Sim)[:auth0_client_secret]
     audience = "https://delivery/api"
 
     payload =

@@ -19,14 +19,14 @@ defmodule TestSupervisor do
     })
   end
 
-  def stop_child(name) do
-    # DynamicSupervisor.ch()
-    # DynamicSupervisor.terminate_child(__MODULE__, via_tuple(name))
-    # Registry.lookup(:test_registry, "1")
+  def stop_child(index) do
+    TestChild.stop(index)
   end
 
-  defp via_tuple(index),
-    do: {:via, Registry, {@registry, index}}
+  def child_indexes do
+    Supervisor.which_children(__MODULE__)
+    |> Enum.map(fn {_, pid, _, _} -> Registry.keys(@registry, pid) |> List.first end)
+  end
 end
 
 defmodule ActorSupervisor do
