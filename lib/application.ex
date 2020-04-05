@@ -8,7 +8,8 @@ defmodule DeliverySim.Application do
     children = [
       {TestSupervisor, []},
       {Spawner, []},
-      {Registry, [keys: :unique, name: @registry]}
+      {Registry, [keys: :unique, name: @registry]},
+      {SimSupervisor, []}
     ]
 
     opts = [strategy: :one_for_one, name: __MODULE__]

@@ -53,9 +53,7 @@ defmodule Sim do
   end
 
   def create_user(email, password) do
-    # get_token("https://dev-delivery.auth0.com/api/v2/")
-    token =
-      "<redacted>"
+    {:ok, token} = get_token("https://dev-delivery.auth0.com/api/v2/")
 
     input = %{
       "email" => email,
@@ -78,10 +76,13 @@ defmodule Sim do
   end
 
   def get_token(audience \\ "https://delivery/api") do
+    client_id = Application.get_env(:delivery_sim, Sim)[:auth0_client_id]
+    client_secret = Application.get_env(:delivery_sim, Sim)[:auth0_client_secret]
+
     json =
       json(%{
-        "client_id" => "<redacted>",
-        "client_secret" => "<redacted>",
+        "client_id" => client_id,
+        "client_secret" => client_secret,
         "audience" => audience,
         "grant_type" => "client_credentials"
       })
@@ -93,9 +94,11 @@ defmodule Sim do
          ) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         {:ok, response} = Poison.decode(body)
+        IO.inspect(response)
         {:ok, response["access_token"]}
 
-      _ ->
+      rest ->
+        IO.inspect(rest)
         {:error}
     end
 

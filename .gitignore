@@ -23,3 +23,6 @@ erl_crash.dump
 delivery_sim-*.tar
 
 .elixir_ls
+
+# Environment variables
+dev.env

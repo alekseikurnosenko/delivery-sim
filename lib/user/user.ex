@@ -122,6 +122,11 @@ defmodule User do
     {:noreply, state}
   end
 
+  def handle_info({:stop}, state) do
+    Task.start(UserSupervisor, :on_child_stopped, [])
+    {:stop, :normal, state}
+  end
+
   defp handle_event(
     "com.delivery.demo.courier.CourierLocationUpdated",
     _payload,
@@ -137,8 +142,12 @@ defmodule User do
     %{orderId: orderId} = state
   ) do
     if payload["orderId"] == orderId do
-      Logger.debug("[U] Order #{orderId} received, starting again")
-      Process.send_after(self(), {:setup}, new_order_delay())
+      Logger.debug("[U] Order #{orderId} received")
+      if state[:would_restart] do
+        Process.send_after(self(), {:setup}, new_order_delay())
+      else
+        Process.send(self(), {:stop}, [])
+      end
       Map.delete(state, :orderId)
     else
       state
@@ -151,8 +160,12 @@ defmodule User do
     %{orderId: orderId} = state
   ) do
     if payload["orderId"] == orderId do
-      Logger.debug("[U] Order #{orderId} canceled, starting again")
-      Process.send_after(self(), {:setup}, new_order_delay())
+      Logger.debug("[U] Order #{orderId} canceled")
+      if state[:would_restart] do
+        Process.send_after(self(), {:setup}, new_order_delay())
+      else
+        Process.send(self(), {:stop}, [])
+      end
       Map.delete(state, :orderId)
     else
       state
