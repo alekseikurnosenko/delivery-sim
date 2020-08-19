@@ -7,7 +7,7 @@ defmodule Courier.API do
     Logger.debug("[C] starting shift #{courierId}")
 
     case HTTPoison.post(
-           "#{endpoint()}/api/couriers/#{courierId}/startShift",
+           "#{endpoint()}/couriers/#{courierId}/startShift",
            [],
            headers(token)
          ) do
@@ -24,7 +24,7 @@ defmodule Courier.API do
       "name" => Faker.Name.name()
     }
 
-    case HTTPoison.post("#{endpoint()}/api/couriers", json(input), headers(token)) do
+    case HTTPoison.post("#{endpoint()}/couriers", json(input), headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         {:ok, response} = Poison.decode(body)
         response
@@ -32,7 +32,7 @@ defmodule Courier.API do
   end
 
   def me(token) do
-    case HTTPoison.get("#{endpoint()}/api/couriers/me", headers(token)) do
+    case HTTPoison.get("#{endpoint()}/couriers/me", headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         if body && body != "" do
           {:ok, response} = Poison.decode(body)
@@ -56,7 +56,7 @@ defmodule Courier.API do
     }
 
     case HTTPoison.post(
-           "#{endpoint()}/api/couriers/#{courierId}/location",
+           "#{endpoint()}/couriers/#{courierId}/location",
            json(input),
            headers(token)
          ) do
@@ -69,7 +69,7 @@ defmodule Courier.API do
     Logger.debug("[C] confirming pickup #{courierId} for order #{orderId}")
 
     case HTTPoison.post(
-           "#{endpoint()}/api/couriers/#{courierId}/orders/#{orderId}/confirmPickup",
+           "#{endpoint()}/couriers/#{courierId}/orders/#{orderId}/confirmPickup",
            [],
            headers(token)
          ) do
@@ -83,7 +83,7 @@ defmodule Courier.API do
     Logger.debug("[C] confirming dropoff as #{courierId} for order #{orderId}")
 
     case HTTPoison.post(
-           "#{endpoint()}/api/couriers/#{courierId}/orders/#{orderId}/confirmDropoff",
+           "#{endpoint()}/couriers/#{courierId}/orders/#{orderId}/confirmDropoff",
            [],
            headers(token)
          ) do
@@ -97,7 +97,7 @@ defmodule Courier.API do
     Logger.debug("[C] accepting delivery reqest as #{courierId} for order #{orderId}")
 
     case HTTPoison.post(
-      "#{endpoint()}/api/couriers/#{courierId}/requests/#{orderId}/accept",
+      "#{endpoint()}/couriers/#{courierId}/requests/#{orderId}/accept",
       [],
       headers(token)
     ) do
@@ -111,7 +111,7 @@ defmodule Courier.API do
     Logger.debug("[C] rejecting delivery reqest as #{courierId} for order #{orderId}")
 
     case HTTPoison.post(
-      "#{endpoint()}/api/couriers/#{courierId}/requests/#{orderId}/reject",
+      "#{endpoint()}/couriers/#{courierId}/requests/#{orderId}/reject",
       [],
       headers(token)
     ) do

@@ -33,6 +33,7 @@ defmodule Courier do
       end
 
     # Here we need to recover whatever we were doing
+    # FIXME: we can have old tokens in DB, if we have get an 401 here, need to re-authorize
     courier =
       case Courier.API.me(token) do
         {:ok, response} ->
@@ -41,6 +42,8 @@ defmodule Courier do
         _ ->
           Courier.API.create(token)
       end
+
+      Logger.info("[C] Token: #{token}")
 
     if !courier["onShift"] do
       Courier.API.start_shift(token, courier["id"])

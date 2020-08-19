@@ -3,13 +3,13 @@ defmodule Sim do
   require Logger
 
   def endpoint do
-    "http://localhost:8080"
-    # "https://enigmatic-garden-23553.herokuapp.com"
+    # "http://localhost:8080"
+    "https://enigmatic-garden-23553.herokuapp.com"
   end
 
   def ws_endpoint do
-    "ws://localhost:8080/ws"
-    # "wss://enigmatic-garden-23553.herokuapp.com/ws"
+    # "ws://localhost:8080/ws"
+    "wss://enigmatic-garden-23553.herokuapp.com/ws"
   end
 
   def login(email, password) do

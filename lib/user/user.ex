@@ -45,6 +45,8 @@ defmodule User do
     token = state[:token]
     User.API.set_address(token)
 
+    Logger.info("[U] Token: #{token}")
+
     payment_method_id = state[:payment_method_id].()
     User.API.set_payment_method(token, payment_method_id)
 

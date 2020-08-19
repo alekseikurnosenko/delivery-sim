@@ -23,7 +23,7 @@ defmodule Restaurant.API do
     }
 
     case HTTPoison.post(
-           "#{endpoint()}/api/restaurants",
+           "#{endpoint()}/restaurants",
            Sim.json(input),
            Sim.headers(token)
          ) do
@@ -34,7 +34,7 @@ defmodule Restaurant.API do
   end
 
   def me(token) do
-    case HTTPoison.get("#{endpoint()}/api/restaurants/me", headers(token)) do
+    case HTTPoison.get("#{endpoint()}/restaurants/me", headers(token)) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         if body && body != "" do
           {:ok, response} = Poison.decode(body)
@@ -54,7 +54,7 @@ defmodule Restaurant.API do
     }
 
     HTTPoison.post(
-      "#{endpoint()}/api/restaurants/#{restaurantId}/dishes",
+      "#{endpoint()}/restaurants/#{restaurantId}/dishes",
       Sim.json(input),
       Sim.headers(token)
     )
@@ -64,7 +64,7 @@ defmodule Restaurant.API do
     Logger.debug("[R] Starting preparing #{restaurantId} order #{orderId}")
 
     HTTPoison.post(
-      "#{endpoint()}/api/restaurants/#{restaurantId}/orders/#{orderId}/startPreparing",
+      "#{endpoint()}/restaurants/#{restaurantId}/orders/#{orderId}/startPreparing",
       [],
       Sim.headers(token)
     )
@@ -74,7 +74,7 @@ defmodule Restaurant.API do
     Logger.debug("[R] Finishing preparing #{restaurantId} order #{orderId}")
 
     HTTPoison.post(
-      "#{endpoint()}/api/restaurants/#{restaurantId}/orders/#{orderId}/finishPreparing",
+      "#{endpoint()}/restaurants/#{restaurantId}/orders/#{orderId}/finishPreparing",
       [],
       Sim.headers(token)
     )
@@ -84,7 +84,7 @@ defmodule Restaurant.API do
     Logger.debug("[R] Fetching orders with status #{status}")
 
     case HTTPoison.get(
-           "#{endpoint()}/api/restaurants/#{restaurantId}/orders?status=#{status}",
+           "#{endpoint()}/restaurants/#{restaurantId}/orders?status=#{status}",
            Sim.headers(token)
          ) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->

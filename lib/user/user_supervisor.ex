@@ -68,8 +68,8 @@ defmodule UserSupervisor do
       :dishes_browse_delay => 100,
       :would_add_to_basket => fn -> true end,
       # TODO: Use gaussian function instead
-      :dishes_count => fn -> 1 + Kernel.ceil(:rand.uniform() * 2) end,
-      :items_per_dish => fn -> 1 + Kernel.ceil(:rand.uniform() * 1) end,
+      :dishes_count => fn -> 1  end,
+      :items_per_dish => fn -> 1 end,
       :item_add_delay => 100,
       :would_order => fn -> true end,
       :would_restart => false

@@ -2,7 +2,7 @@ defmodule Restaurant do
   use GenServer, restart: :permanent
   require Logger
 
-  @dishes_per_restaurant 25
+  @dishes_per_restaurant 3
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
